@@ -1,0 +1,31 @@
+name: DevAM Focus Daily Puzzle Dispatch
+
+on:
+  schedule:
+    # Her gün UTC 05:30 (Türkiye saati 08:30)
+    - cron: '30 5 * * *'
+  workflow_dispatch: # GitHub sekmesinden tek tıkla manuel test edebilmen için
+
+jobs:
+  dispatch-puzzle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu Çek
+        uses: actions/checkout@v4
+
+      - name: Node.js Kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Görsel Motorunu (Sharp) Yükle
+        run: npm install sharp
+
+      - name: Bulmacayı Üret ve Paylaş
+        env:
+          # Manuel testte 15 dk beklememesi için workflow_dispatch kontrolü
+          IS_MANUAL_TEST: ${{ github.event_name == 'workflow_dispatch' }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
+          BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
+        run: node scripts/daily-dispatch.js
