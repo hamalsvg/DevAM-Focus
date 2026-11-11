@@ -1,0 +1,60 @@
+name: DevAM Focus Daily AI Reels Generator
+
+on:
+  schedule:
+    # Her gün UTC 05:45 (Türkiye saati 08:45)
+    - cron: '45 5 * * *'
+  workflow_dispatch: # GitHub Actions sekmesinden tek tıkla manuel test için
+
+jobs:
+  build-and-publish-reel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu Çek
+        uses: actions/checkout@v4
+
+      - name: Node.js Kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Python ve Ücretsiz AI Ses Motoru (Edge-TTS) Kurulumu
+        run: |
+          pip install edge-tts
+          npm install sharp
+
+      - name: Orijinal Logolu Reels Karelerini ve Okyanus Sesini Üret
+        run: node scripts/generate-daily-reel.js
+
+      - name: Türkçe Yapay Zeka Seslendirmesini (voice.mp3) Üret
+        run: |
+          edge-tts --voice tr-TR-AhmetNeural --rate="+6%" --file reel_build/tts.txt --write-media reel_build/voice.mp3
+
+      - name: FFmpeg ile 1080x1920 MP4 Videosunu Birleştir (AI Ses + Kahverengi Gürültü)
+        run: |
+          ffmpeg -y \
+            -framerate 1 -i reel_build/frame_%02d.png \
+            -i reel_build/voice.mp3 \
+            -i reel_build/ocean_bg.wav \
+            -filter_complex "[1:a]volume=1.0[v];[2:a]volume=0.18[bg];[v][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]" \
+            -map 0:v -map "[aout]" \
+            -c:v libx264 -r 30 -pix_fmt yuv420p \
+            -c:a aac -b:a 192k \
+            -shortest reel_build/devam_focus_reel.mp4
+
+      - name: Üretilen MP4 Videosunu GitHub Artifacts Olarak Kaydet
+        uses: actions/upload-artifact@v4
+        with:
+          name: gunluk-reels-videosu
+          path: reel_build/devam_focus_reel.mp4
+
+      - name: MP4 Videosunu Discord Kanalına Gönder
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            CAPTION=$(cat reel_build/caption.txt)
+            curl -F "payload_json={\"username\":\"DevAM Focus • Video Otomasyonu\",\"content\":$(jq -Rs . <<< "$CAPTION")}" \
+                 -F "file=@reel_build/devam_focus_reel.mp4" \
+                 "$DISCORD_WEBHOOK_URL"
+          fi
