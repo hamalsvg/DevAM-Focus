@@ -20,12 +20,13 @@ jobs:
         with:
           node-version: '22'
 
-      - name: FFmpeg, Edge-TTS ve Sharp Kurulumu
+      - name: FFmpeg, Edge-TTS, Sharp ve Playwright Kurulumu
         run: |
           sudo apt-get update -y
           sudo apt-get install -y ffmpeg jq
           pipx install edge-tts || python3 -m pip install edge-tts --break-system-packages || true
-          npm install sharp --no-audit --no-fund
+          npm install sharp playwright --no-audit --no-fund
+          npx playwright install --with-deps chromium
 
       - name: Günlük Senaryo ve Seslendirme Metnini Hazırla
         run: node scripts/generate-daily-reel.js init
@@ -94,6 +95,8 @@ jobs:
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           YT_BOT_POOL: ${{ secrets.YT_BOT_POOL }}
+          YT_BOT1_REFRESH_TOKEN: ${{ secrets.YT_BOT1_REFRESH_TOKEN }}
+          YT_BOT2_REFRESH_TOKEN: ${{ secrets.YT_BOT2_REFRESH_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
         run: |
