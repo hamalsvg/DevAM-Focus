@@ -10,12 +10,15 @@ async function uploadToYouTubeShorts(caption) {
   const clientSecret = (process.env.YT_CLIENT_SECRET || '').trim();
   const refreshToken = (process.env.YT_REFRESH_TOKEN || '').trim();
 
+  console.log(
+    `[YouTube Kontrol] ID:${clientId ? 'VAR' : 'YOK'}, SECRET:${clientSecret ? 'VAR' : 'YOK'}, REFRESH:${refreshToken ? 'VAR' : 'YOK'}`
+  );
+
   if (!clientId || !clientSecret || !refreshToken) {
-    console.log('>>> [YouTube] Eksik Secret! YT_CLIENT_ID, YT_CLIENT_SECRET ve YT_REFRESH_TOKEN GitHub Secrets icine eklenmeli.');
+    console.log('[YouTube] Eksik Secret anahtari var, YouTube yuklemesi atlandi.');
     return;
   }
 
-  console.log('>>> [YouTube] Access token aliniyor...');
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -29,12 +32,15 @@ async function uploadToYouTubeShorts(caption) {
 
   const tokenText = await tokenRes.text();
   if (!tokenRes.ok) {
-    console.error('>>> [YouTube] Token Hatasi:', tokenText);
+    console.error('[YouTube] Token alma hatasi:', tokenText);
     return;
   }
 
   const { access_token } = JSON.parse(tokenText);
-  const firstLine = (caption.split('\n')[0] || 'DevAM Focus — Odak ve Planlama Yöneticisi').replace(/⚓/g, '').trim().slice(0, 75);
+  const firstLine = (caption.split('\n')[0] || 'DevAM Focus — Odak ve Planlama Yöneticisi')
+    .replace(/⚓/g, '')
+    .trim()
+    .slice(0, 75);
 
   const metadata = {
     snippet: {
@@ -49,7 +55,6 @@ async function uploadToYouTubeShorts(caption) {
     }
   };
 
-  console.log('>>> [YouTube] Shorts yukleme oturumu baslatiliyor...');
   const initRes = await fetch(
     'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
     {
@@ -64,7 +69,7 @@ async function uploadToYouTubeShorts(caption) {
   );
 
   if (!initRes.ok) {
-    console.error('>>> [YouTube] Yukleme Baslatma Hatasi (Kanalinizda YouTube API etkin mi?):', await initRes.text());
+    console.error('[YouTube] Oturum baslatma hatasi:', await initRes.text());
     return;
   }
 
@@ -80,81 +85,85 @@ async function uploadToYouTubeShorts(caption) {
     body: videoBuffer
   });
 
-  console.log('>>> [YouTube] Yukleme Sonucu HTTP:', upRes.status, (await upRes.text()).slice(0, 300));
+  console.log('[YouTube] Shorts Yukleme Tamamlandi! HTTP:', upRes.status, (await upRes.text()).slice(0, 250));
 }
 
-// Geçici genel URL üretici (Instagram Graph API videoyu dış bir URL'den çeker)
-async function uploadTempPublicVideo(filePath) {
-  try {
-    const form = new FormData();
-    form.append('reqtype', 'fileupload');
-    form.append('time', '1h');
-    form.append('fileToUpload', new Blob([fs.readFileSync(filePath)], { type: 'video/mp4' }), 'reel.mp4');
-    const r1 = await fetch('https://litterbox.catbox.moe/resources/internals/api.php', { method: 'POST', body: form });
-    const u1 = (await r1.text()).trim();
-    if (u1.startsWith('http')) return u1;
-  } catch (e) {}
-
-  try {
-    const form2 = new FormData();
-    form2.append('reqtype', 'fileupload');
-    form2.append('fileToUpload', new Blob([fs.readFileSync(filePath)], { type: 'video/mp4' }), 'reel.mp4');
-    const r2 = await fetch('https://catbox.moe/user/api.php', { method: 'POST', body: form2 });
-    const u2 = (await r2.text()).trim();
-    if (u2.startsWith('http')) return u2;
-  } catch (e) {}
-
-  return '';
-}
-
-// 2. INSTAGRAM REELS OTOMATİK YÜKLEYİCİ
+// 2. INSTAGRAM REELS DOĞRUDAN YÜKLEYİCİ (Geçici Sunucu Gerektirmez - Resmi Meta Resumable Upload)
 async function uploadToInstagramReels(caption) {
   const igUserId = (process.env.IG_USER_ID || '').trim();
   const accessToken = (process.env.IG_ACCESS_TOKEN || '').trim();
 
   if (!igUserId || !accessToken) {
-    console.log('>>> [Instagram] Eksik Secret! IG_USER_ID ve IG_ACCESS_TOKEN GitHub Secrets icine eklenmeli.');
+    console.log('[Instagram] IG_USER_ID veya IG_ACCESS_TOKEN tanimli degil, atlandi.');
     return;
   }
 
-  console.log('>>> [Instagram] Video gecici buluta yukleniyor...');
-  const publicVideoUrl = await uploadTempPublicVideo(VIDEO_PATH);
-  if (!publicVideoUrl) {
-    console.error('>>> [Instagram] Gecici video URL alinamadi.');
-    return;
-  }
+  const videoBuffer = fs.readFileSync(VIDEO_PATH);
+  const fileSize = videoBuffer.length;
 
-  console.log('>>> [Instagram] Reels konteyneri olusturuluyor:', publicVideoUrl);
-  const createRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media`, {
+  console.log(`[Instagram] 1/3 Resumable Reels oturumu aciliyor (${fileSize} byte)...`);
+  const initRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       media_type: 'REELS',
-      video_url: publicVideoUrl,
+      upload_type: 'resumable',
       caption: `${caption}\n\n#pomodoro #dersçalışma #yks #odaklanma #devamfocus`,
       access_token: accessToken
     })
   });
 
-  const createData = await createRes.json();
-  if (!createData.id) {
-    console.error('>>> [Instagram] Konteyner Hatasi:', JSON.stringify(createData));
+  const initData = await initRes.json();
+  if (!initData.id || !initData.uri) {
+    console.error('[Instagram] Oturum acma hatasi:', JSON.stringify(initData));
     return;
   }
 
-  console.log('>>> [Instagram] Video Meta sunucusunda isleniyor (40 sn bekleniyor)...');
-  await new Promise((r) => setTimeout(r, 40000));
+  const creationId = initData.id;
+  const uploadUri = initData.uri;
+
+  console.log('[Instagram] 2/3 Video dogrudan Meta sunucusuna (rupload.facebook.com) yukleniyor...');
+  const uploadRes = await fetch(uploadUri, {
+    method: 'POST',
+    headers: {
+      Authorization: `OAuth ${accessToken}`,
+      offset: '0',
+      file_size: String(fileSize),
+      'Content-Type': 'application/octet-stream'
+    },
+    body: videoBuffer
+  });
+
+  const uploadText = await uploadRes.text();
+  console.log('[Instagram] Binary yukleme cevabi:', uploadRes.status, uploadText);
+
+  // Video işlenene kadar durumunu kontrol et (en fazla 60 sn)
+  console.log('[Instagram] 3/3 Meta video islemesi bekleniyor...');
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    await new Promise((r) => setTimeout(r, 10000));
+    const statusRes = await fetch(
+      `https://graph.facebook.com/v19.0/${creationId}?fields=status_code,status&access_token=${accessToken}`
+    );
+    const statusData = await statusRes.json();
+    console.log(`[Instagram] Isleme durumu (${attempt * 10} sn):`, JSON.stringify(statusData));
+
+    if (statusData.status_code === 'FINISHED') break;
+    if (statusData.status_code === 'ERROR') {
+      console.error('[Instagram] Video isleme hatasi:', JSON.stringify(statusData));
+      return;
+    }
+  }
 
   const pubRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media_publish`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      creation_id: createData.id,
+      creation_id: creationId,
       access_token: accessToken
     })
   });
 
-  console.log('>>> [Instagram] Reels Yayin Sonucu:', pubRes.status, await pubRes.text());
+  console.log('[Instagram] Reels Yayin Sonucu:', pubRes.status, await pubRes.text());
 }
 
 (async () => {
