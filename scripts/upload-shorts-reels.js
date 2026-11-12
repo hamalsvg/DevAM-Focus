@@ -11,11 +11,11 @@ async function uploadToYouTubeShorts(caption) {
   const refreshToken = (process.env.YT_REFRESH_TOKEN || '').trim();
 
   if (!clientId || !clientSecret || !refreshToken) {
-    console.log('[YouTube] Secret anahtarlari (YT_CLIENT_ID / YT_CLIENT_SECRET / YT_REFRESH_TOKEN) bos, atlandi.');
+    console.log('>>> [YouTube] Eksik Secret! YT_CLIENT_ID, YT_CLIENT_SECRET ve YT_REFRESH_TOKEN GitHub Secrets icine eklenmeli.');
     return;
   }
 
-  console.log('[YouTube] Access token aliniyor...');
+  console.log('>>> [YouTube] Access token aliniyor...');
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -27,12 +27,13 @@ async function uploadToYouTubeShorts(caption) {
     })
   });
 
+  const tokenText = await tokenRes.text();
   if (!tokenRes.ok) {
-    console.error('[YouTube] Token alma hatasi:', await tokenRes.text());
+    console.error('>>> [YouTube] Token Hatasi:', tokenText);
     return;
   }
 
-  const { access_token } = await tokenRes.json();
+  const { access_token } = JSON.parse(tokenText);
   const firstLine = (caption.split('\n')[0] || 'DevAM Focus — Odak ve Planlama Yöneticisi').replace(/⚓/g, '').trim().slice(0, 75);
 
   const metadata = {
@@ -48,7 +49,7 @@ async function uploadToYouTubeShorts(caption) {
     }
   };
 
-  console.log('[YouTube] Shorts yukleme oturumu baslatiliyor...');
+  console.log('>>> [YouTube] Shorts yukleme oturumu baslatiliyor...');
   const initRes = await fetch(
     'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status',
     {
@@ -63,17 +64,13 @@ async function uploadToYouTubeShorts(caption) {
   );
 
   if (!initRes.ok) {
-    console.error('[YouTube] Oturum baslatma hatasi:', await initRes.text());
+    console.error('>>> [YouTube] Yukleme Baslatma Hatasi (Kanalinizda YouTube API etkin mi?):', await initRes.text());
     return;
   }
 
   const uploadUrl = initRes.headers.get('location');
-  if (!uploadUrl) {
-    console.error('[YouTube] Yukleme URL alinamadi.');
-    return;
-  }
-
   const videoBuffer = fs.readFileSync(VIDEO_PATH);
+
   const upRes = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {
@@ -83,8 +80,31 @@ async function uploadToYouTubeShorts(caption) {
     body: videoBuffer
   });
 
-  const upText = await upRes.text();
-  console.log('[YouTube] Yukleme tamamlandi! HTTP Durumu:', upRes.status, upText.slice(0, 200));
+  console.log('>>> [YouTube] Yukleme Sonucu HTTP:', upRes.status, (await upRes.text()).slice(0, 300));
+}
+
+// Geçici genel URL üretici (Instagram Graph API videoyu dış bir URL'den çeker)
+async function uploadTempPublicVideo(filePath) {
+  try {
+    const form = new FormData();
+    form.append('reqtype', 'fileupload');
+    form.append('time', '1h');
+    form.append('fileToUpload', new Blob([fs.readFileSync(filePath)], { type: 'video/mp4' }), 'reel.mp4');
+    const r1 = await fetch('https://litterbox.catbox.moe/resources/internals/api.php', { method: 'POST', body: form });
+    const u1 = (await r1.text()).trim();
+    if (u1.startsWith('http')) return u1;
+  } catch (e) {}
+
+  try {
+    const form2 = new FormData();
+    form2.append('reqtype', 'fileupload');
+    form2.append('fileToUpload', new Blob([fs.readFileSync(filePath)], { type: 'video/mp4' }), 'reel.mp4');
+    const r2 = await fetch('https://catbox.moe/user/api.php', { method: 'POST', body: form2 });
+    const u2 = (await r2.text()).trim();
+    if (u2.startsWith('http')) return u2;
+  } catch (e) {}
+
+  return '';
 }
 
 // 2. INSTAGRAM REELS OTOMATİK YÜKLEYİCİ
@@ -93,24 +113,18 @@ async function uploadToInstagramReels(caption) {
   const accessToken = (process.env.IG_ACCESS_TOKEN || '').trim();
 
   if (!igUserId || !accessToken) {
-    console.log('[Instagram] IG_USER_ID veya IG_ACCESS_TOKEN tanimli degil, atlandi.');
+    console.log('>>> [Instagram] Eksik Secret! IG_USER_ID ve IG_ACCESS_TOKEN GitHub Secrets icine eklenmeli.');
     return;
   }
 
-  console.log('[Instagram] Video gecici sunucuya yukleniyor...');
-  const form = new FormData();
-  form.append('reqtype', 'fileupload');
-  form.append('fileToUpload', new Blob([fs.readFileSync(VIDEO_PATH)], { type: 'video/mp4' }), 'reel.mp4');
-
-  const hostRes = await fetch('https://catbox.moe/user/api.php', { method: 'POST', body: form });
-  const publicVideoUrl = (await hostRes.text()).trim();
-
-  if (!publicVideoUrl.startsWith('http')) {
-    console.error('[Instagram] Gecici video URL alinamadi:', publicVideoUrl);
+  console.log('>>> [Instagram] Video gecici buluta yukleniyor...');
+  const publicVideoUrl = await uploadTempPublicVideo(VIDEO_PATH);
+  if (!publicVideoUrl) {
+    console.error('>>> [Instagram] Gecici video URL alinamadi.');
     return;
   }
 
-  console.log('[Instagram] Reels konteyneri olusturuluyor:', publicVideoUrl);
+  console.log('>>> [Instagram] Reels konteyneri olusturuluyor:', publicVideoUrl);
   const createRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -124,11 +138,11 @@ async function uploadToInstagramReels(caption) {
 
   const createData = await createRes.json();
   if (!createData.id) {
-    console.error('[Instagram] Konteyner hatasi:', JSON.stringify(createData));
+    console.error('>>> [Instagram] Konteyner Hatasi:', JSON.stringify(createData));
     return;
   }
 
-  console.log('[Instagram] Video isleniyor (40 sn bekleniyor)...');
+  console.log('>>> [Instagram] Video Meta sunucusunda isleniyor (40 sn bekleniyor)...');
   await new Promise((r) => setTimeout(r, 40000));
 
   const pubRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media_publish`, {
@@ -140,7 +154,7 @@ async function uploadToInstagramReels(caption) {
     })
   });
 
-  console.log('[Instagram] Reels yayin sonucu:', pubRes.status, await pubRes.text());
+  console.log('>>> [Instagram] Reels Yayin Sonucu:', pubRes.status, await pubRes.text());
 }
 
 (async () => {
