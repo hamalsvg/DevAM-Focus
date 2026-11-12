@@ -1,0 +1,27 @@
+name: DevAM Focus 24-Hour Organic Comment Waves
+
+on:
+  schedule:
+    # Her 3 saatte bir çalışır ve son videoya henüz yazmamış botlarla yeni tartışma ekler (ertesi güne kadar yayar)
+    - cron: '20 */3 * * *'
+  workflow_dispatch:
+
+jobs:
+  organic-comment-wave:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu Çek
+        uses: actions/checkout@v4
+
+      - name: Node.js Kurulumu
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Sıradaki Bot Dalgasını Gönder (Ertesi Güne Yayılan Tartışma)
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_BOT_POOL: ${{ secrets.YT_BOT_POOL }}
+        run: node scripts/upload-shorts-reels.js wave
