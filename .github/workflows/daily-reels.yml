@@ -93,8 +93,7 @@ jobs:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-          YT_BOT1_REFRESH_TOKEN: ${{ secrets.YT_BOT1_REFRESH_TOKEN }}
-          YT_BOT2_REFRESH_TOKEN: ${{ secrets.YT_BOT2_REFRESH_TOKEN }}
+          YT_BOT_POOL: ${{ secrets.YT_BOT_POOL }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
         run: |
