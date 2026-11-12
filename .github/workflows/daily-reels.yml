@@ -37,7 +37,6 @@ jobs:
             edge-tts --voice tr-TR-AhmetNeural --rate="+2%" --file reel_build/tts.txt --write-media reel_build/voice.mp3 || true
           fi
 
-          # Ses süresini güvenli şekilde tam sayıya çevir (varsayılan 26 saniye)
           TARGET_SEC=26
           if [ -s "reel_build/voice.mp3" ]; then
             RAW_INT=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 reel_build/voice.mp3 | cut -d. -f1 || echo "24")
@@ -88,12 +87,14 @@ jobs:
                  "$DISCORD_WEBHOOK_URL"
           fi
 
-      - name: YouTube Shorts ve Instagram Reels Olarak Otomatik Yayınla
+      - name: YouTube Shorts ve Instagram Reels Olarak Otomatik Yayınla ve Bot Tartışmasını Başlat
         continue-on-error: true
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_BOT1_REFRESH_TOKEN: ${{ secrets.YT_BOT1_REFRESH_TOKEN }}
+          YT_BOT2_REFRESH_TOKEN: ${{ secrets.YT_BOT2_REFRESH_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
         run: |
